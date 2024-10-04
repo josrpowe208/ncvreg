@@ -160,3 +160,17 @@ def lasso_loss(z, l1, l2, v):
         return 0
     else:
         return (s * (np.abs(z) - l1) / (v * (1 + l2)))
+
+def w_cross(X, y, w, n, j):
+    nn = n*j
+    val = 0
+    for i in range(n):
+        val += X[nn+i]*y[i]*w[i]
+    return val
+
+def weighted_sum(X, w, n, j):
+    nn = n*j
+    val = 0
+    for i in range(n):
+        val += np.power(X[nn+i], 2)*w[i]
+    return val

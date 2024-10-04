@@ -1,4 +1,5 @@
 import warnings
+from abc import ABC
 from typing import List
 import numpy as np
 import statsmodels.api as sm
@@ -7,7 +8,7 @@ from src.ncvreg.models.coordinate_descent_glm import cd_ols
 from src.ncvreg.models.coordinate_descent_gaussian import cd_gaussian
 from base import BaseRegressor
 
-class NCVREG(BaseRegressor):
+class NCVREG(BaseRegressor, ABC):
     def __init__(self,
                  lmbd: List = None,
                  family: str = 'gaussian',

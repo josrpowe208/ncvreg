@@ -1,7 +1,9 @@
 import warnings
+from itertools import repeat
+
 import scipy as sp
 import numpy as np
-from src.ncvreg.utils import mcp_loss, scad_loss, lasso_loss
+from src.ncvreg.utils import mcp_loss, scad_loss, lasso_loss, weighted_sum, w_cross
 
 def cd_ols(X, y, family, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, dfmax):
     n, p = X.shape
@@ -134,8 +136,8 @@ def cd_ols(X, y, family, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha,
                     for j in range(p):
                         if e1[j]:
                             # Calculate u and v
-                            xwr = np.wcross(X, r, w, n, j)
-                            xwx = np.weighted_sum(X, w, n, j)
+                            xwr = w_cross(X, r, w, n, j)
+                            xwx = weighted_sum(X, w, n, j)
                             u = (xwr / n) + (xwx / n)*a[j]
                             v = xwx / n
 
@@ -175,7 +177,7 @@ def cd_ols(X, y, family, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha,
                         z[j] = np.cross(X, s, n, j) / n
                         l1 = lmbd[l] * alpha * multiplier[j]
                         if np.abs(z[j]) > l1:
-                            e1[j], e2[j] = 1
+                            e1[j] = e2[j] = 1
                             violations += 1
                 if violations == 0:
                     break
@@ -187,7 +189,7 @@ def cd_ols(X, y, family, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha,
                     z[j] = np.cross(X, s, n, j) / n
                     l1 = lmbd[l] * alpha * multiplier[j]
                     if np.abs(z[j]) > l1:
-                        e1[j], e2[j] = 1
+                        e1[j] = e2[j] = 1
                         violations += 1
             if violations == 0:
                 for i in range(n):
