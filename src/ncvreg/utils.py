@@ -174,3 +174,10 @@ def weighted_sum(X, w, n, j):
     for i in range(n):
         val += np.power(X[nn+i], 2)*w[i]
     return val
+
+def gauss_loss(r, n):
+    l = 0
+    for i in range(n):
+        l += np.power(r[i], 2)
+    return l
+

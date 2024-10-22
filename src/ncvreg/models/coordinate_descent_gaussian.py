@@ -4,7 +4,7 @@ from os import lstat
 
 import scipy as sp
 import numpy as np
-from src.ncvreg.utils import mcp_loss, scad_loss, lasso_loss, weighted_sum, w_cross
+from src.ncvreg.utils import mcp_loss, scad_loss, lasso_loss, gauss_loss
 
 def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, dfmax):
     n, p = X.shape
@@ -18,6 +18,10 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
     z = np.cross(X, r, n, p)/n
 
     lstart = 0
+
+    # Initialize residual sum of squares
+    rss = gauss_loss(r, n)
+    sdy = np.sqrt(rss/n)
 
     # Coordinate Descent Path
     for l in range(lstart, L):
@@ -126,3 +130,44 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
 
             # Scan for violations in the rest
             violations = 0
+            for j in range(p):
+                if e2[j] == 0:
+                    z[j] = np.cross(X, r, n, j) / n
+
+                    # Update beta_j
+                    l1 = lmbd[l] * alpha * multiplier[j]
+                    l2 = lmbd[l] * (1 - alpha) * multiplier[j]
+                    if penalty == "mcp":
+                        beta[l*p+j] = mcp_loss(z[j], l1, l2, gamma, 1)
+                    elif penalty == "scad":
+                        beta[l*p+j] = scad_loss(z[j], l1, l2, gamma, 1)
+                    elif penalty == "lasso":
+                        beta[l*p+j] = lasso_loss(z[j], l1, l2, 1)
+                    else:
+                        raise ValueError("Penalty must be one of 'lasso', 'mcp', or 'scad'")
+
+                    if beta[l*p+j] != 0:
+                        e1[j] = e2[j] = 1
+                        for i in range(n):
+                            r[i] -= beta[l*p+j] * X[j*n+i]
+                        a[j] = beta[l*p+j]
+                        violations += 1
+
+            if violations == 0:
+                break
+
+        # Update loss
+        loss[l] = gauss_loss(r, n)
+        for i in range(n):
+            Eta[n*l+i] = y[i] - r[i]
+
+    res = {"a": a,
+           "r": r,
+           "e1": e1,
+           "e2": e2,
+           "z": z,
+           "beta": beta,
+           "loss": loss,
+           "Eta": Eta,
+           "n_iter": total_iter}
+    return res

@@ -195,5 +195,10 @@ def cd_ols(X, y, family, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha,
                 for i in range(n):
                     Eta[n*l+i] = eta[i]
                 break
-    res = {"beta0": beta0, "beta": beta, "dev": dev, "Eta": Eta, "iter": total_iter}
+
+    res = {"beta0": beta0,
+           "beta": beta,
+           "dev": dev,
+           "Eta": Eta,
+           "n_iter": total_iter}
     return res

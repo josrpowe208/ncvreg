@@ -1,15 +1,18 @@
 import warnings
-from abc import ABC
 from typing import List
 import numpy as np
+from scipy import stats
 import statsmodels.api as sm
 from src.ncvreg.utils import maxprod, get_convex_min
 from src.ncvreg.models.coordinate_descent_glm import cd_ols
 from src.ncvreg.models.coordinate_descent_gaussian import cd_gaussian
-from base import BaseRegressor
+from src.ncvreg.base import BaseRegressor
 
-class NCVREG(BaseRegressor, ABC):
+
+class NCVREG(BaseRegressor):
     def __init__(self,
+                 X: np.ndarray,
+                 y: np.ndarray,
                  lmbd: List = None,
                  family: str = 'gaussian',
                  penalty: str = 'mcp',
@@ -55,6 +58,8 @@ class NCVREG(BaseRegressor, ABC):
             Calculate the index for which objective function ceases to be locally convex. Default is True.
         """
         super().__init__()
+        self.X = X
+        self.y = y
         self.lmbd = lmbd
         self.family = family
         self.penalty = penalty
@@ -88,7 +93,7 @@ class NCVREG(BaseRegressor, ABC):
             except Exception:
                 raise ValueError('y must be an np.ndarray or coercible to one')
 
-        if self.y.shape[1] > 1:
+        if self.y.ndim > 1:
             raise ValueError('y must be a 1D array')
 
         try:
@@ -126,7 +131,7 @@ class NCVREG(BaseRegressor, ABC):
         Standardize the data matrix by column
         :return:
         """
-        self.X_std = (self.X - np.mean(self.X, axis=1)) / np.std(self.X, axis=1)
+        self.X_std = stats.zscore(self.X, axis=1)
 
         if self.family == 'gaussian':
             self.y_std = self.y - np.mean(self.y)
@@ -137,20 +142,23 @@ class NCVREG(BaseRegressor, ABC):
         idx = np.where(self.penalty_factor != 0)[0]
 
         # Fit OLS model to get lambda_max
-        if len(idx) != self.p:
-            fit = sm.OLS(self.y, self.X[:, idx]).fit()
+        if self.family == 'gaussian':
+            fam = sm.families.Gaussian()
+        elif self.family == 'binomial':
+            fam = sm.families.Binomial()
         else:
-            fit = sm.OLS(self.y, np.ones(self.n)).fit()
+            fam = sm.families.Poisson()
+
+        if len(idx) != self.p:
+            fit = sm.GLM(self.y, self.X[:, idx], family=fam).fit()
+        else:
+            fit = sm.GLM(self.y, np.ones(self.n), family=fam).fit()
 
         # Find Z-max
-        # TODO:
-        #   - See if OLS can provide working residuals (difference
-        #   between the working response and the linear predictor at
-        #   convergence)
         if self.family == 'gaussian':
-            zmax = maxprod(self.X, fit.residuals, idx, self.penalty_factor) / self.n
+            zmax = maxprod(self.X, fit.resid_deviance, idx, self.penalty_factor) / self.n
         else:
-            zmax = maxprod(self.X, fit.residuals * fit.weights, idx, self.penalty_factor) / self.n
+            zmax = maxprod(self.X, fit.resid_working * fit.weights, idx, self.penalty_factor) / self.n
 
         lambda_max = zmax / self.alpha
 
@@ -176,23 +184,17 @@ class NCVREG(BaseRegressor, ABC):
                      self.alpha, self.dfmax)
         return res
 
-    def fit(self,
-            X: np.ndarray,
-            y: np.ndarray):
+    def fit(self):
         """
         Fit the model
 
         Parameters
         ----------
-        X : np.ndarray
-            Design matrix
 
-        y : np.ndarray
-            Response variable
+        Returns
+        -------
+
         """
-        # Initialize X and y
-        self.X = X
-        self.y = y
 
         # Standardize the data
         self._standardize()
@@ -240,7 +242,7 @@ class NCVREG(BaseRegressor, ABC):
 
         self.fitted = True
 
-    def predict(self, X):
+    def predict(self):
         # Predict the response
         if self.family == 'gaussian':
             pass
@@ -250,4 +252,4 @@ class NCVREG(BaseRegressor, ABC):
     def fit_predict(self):
         # Fit the model and predict the response
         self.fit()
-        return self.predict(self.X)
+        return self.predict()
