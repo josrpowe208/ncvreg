@@ -5,12 +5,6 @@ import pandas as pd
 
 from src.ncvreg.models.ncvreg import NCVREG
 
-X = np.random.randn(1000, 10)
-y = np.random.randn(1000)
-
-print(X.shape)
-print(y.shape)
-
 # Pick 4 random csv files from a directory and load then into 1 dataframe
 df = pd.DataFrame()
 files = glob.glob("/Users/jrp208/Documents/Independent_Work/data/kaggle_stocks/stocks/*.csv")
@@ -24,9 +18,6 @@ for idx in idxs:
     # Add stock name to temp
     temp['symbol'] = file.split('.')[0].split('/')[-1]
     df = pd.concat([df, temp], axis=0)
-
-print(df.describe())
-print(df.info())
 
 X = df.drop(columns=['date', 'symbol', 'adj_close']).to_numpy()
 y = df['adj_close'].to_numpy()

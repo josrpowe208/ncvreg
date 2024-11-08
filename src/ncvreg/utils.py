@@ -17,14 +17,18 @@ def maxprod(X, residuals, idx, penalty_factor):
     """
     n, p = X.shape
     zmax = 0
+
+    def max_sum(a, b):
+        return np.dot(a, b)
+
     for i in range(p):
-        zz = np.cross(X, residuals, n, idx[i]-1) / penalty_factor[idx[i]-1]
+        zz = max_sum(X[:, i], residuals) / penalty_factor[idx[i]]
         if np.abs(zz) > zmax:
             zmax = np.abs(zz)
     return zmax
 
 
-def get_convex_min(b, X, penalty, gamma, l2, family, pf, a, Delta):
+def get_convex_min(b, X, penalty, gamma, l2, family, pf, a, Delta=None):
     """
     Identify local convexity
     :param b:
@@ -57,24 +61,24 @@ def get_convex_min(b, X, penalty, gamma, l2, family, pf, a, Delta):
         if i == 0:
             A_1 = np.ones(p)
         else:
-            A_1 = np.abs(b[:, i-1])
+            A_1 = b[:, i]
 
-        if i == l-1:
+        if i == l:
             L_2 = l2[i]
             U = A_1
         else:
-            A_2 = np.abs(b[:, i+1])
+            A_2 = b[:, i+1]
             U = np.minimum(A_1, A_2)
             L_2 = l2[i+1]
 
-        if not sum(U) == 0:
+        if sum(-U) == 0:
             continue
 
         Xu = X[:, -U]
-        p_hat = k*(pf[-U] - L_2*pf[-U])
+        p_hat = k*np.where(pf[-U] != 0) - L_2*pf[-U]
 
         if family == "gaussian":
-            if any(A_1 == A_2):
+            if any(A_1 != A_2):
                 eigen_min = min(np.eigvals(np.cross(Xu)/n - np.diag(p_hat)))
         elif family == "binomial":
             if (i == l):

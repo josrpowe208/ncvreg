@@ -13,9 +13,15 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
     beta = np.zeros((L, p))
     loss = np.zeros(L)
     Eta = np.zeros((L, n))
+    iter_idx = np.zeros(L)
     r = y
-    a, e1, e2 = np.zeros(p)
-    z = np.cross(X, r, n, p)/n
+    a = np.zeros(p)
+    z = np.zeros(p)
+    e1 = np.zeros(p)
+    e2 = np.zeros(p)
+
+    for i in range(p):
+        z[i] = np.dot(X[:, i], r) / n
 
     lstart = 0
 
@@ -46,13 +52,15 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
         else:
             nv = 0
             for j in range(p):
-                a[j] = beta[(l - 1)*p+j]
+                a[j] = beta[l-1, j]
 
             for j in range(p):
                 if a[j] != 0:
                     nv += 1
 
             if (nv > dfmax) or total_iter == max_iter:
+                for ll in range(l, L):
+                    iter_idx[ll] = np.nan
                 break
 
             if penalty == "lasso":
@@ -72,34 +80,35 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
         while total_iter < max_iter:
             while total_iter < max_iter:
                 while total_iter < max_iter:
+                    iter_idx[l] += 1
                     total_iter += 1
                     max_change = 0
                     for j in range(p):
                         if e1[j]:
-                            z[j] = np.cross(X, r, n, j) / n + a[j]
+                            z[j] = np.dot(X[:, j], r) / n + a[j]
 
                             # Update beta
                             l1 = lmbd[l] * alpha * multiplier[j]
                             l2 = lmbd[l] * (1 - alpha) * multiplier[j]
                             if penalty == "mcp":
-                                beta[l*p+j] = mcp_loss(z[j], l1, l2, gamma, 1)
+                                beta[l, j] = mcp_loss(z[j], l1, l2, gamma, 1)
                             elif penalty == "scad":
-                                beta[l*p+j] = scad_loss(z[j], l1, l2, gamma, 1)
+                                beta[l, j] = scad_loss(z[j], l1, l2, gamma, 1)
                             elif penalty == "lasso":
-                                beta[l*p+j] = lasso_loss(z[j], l1, l2, 1)
+                                beta[l, j] = lasso_loss(z[j], l1, l2, 1)
                             else:
                                 raise ValueError("Penalty must be one of 'lasso', 'mcp', or 'scad'")
 
                             # Update r
-                            shift = beta[l*p+j] - a[j]
+                            shift = beta[l, j] - a[j]
                             if shift != 0:
                                 for i in range(n):
-                                    r[i] -= shift * X[j*n+i]
+                                    r[i] -= shift * X[i, j]
                                 if np.abs(shift) > max_change:
                                     max_change = np.abs(shift)
 
                     for j in range(p):
-                        a[j] = beta[l*p+j]
+                        a[j] = beta[l, j]
                         if max_change < eps*sdy:
                             break
 
@@ -107,23 +116,23 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
                 violations = 0
                 for j in range(p):
                     if e1[j] == 0 and e2[j] == 1:
-                        z[j] = np.cross(X, r, n, j) / n
+                        z[j] = np.dot(X[:, j], r) / n
                         l1 = lmbd[l] * alpha * multiplier[j]
                         l2 = lmbd[l] * (1 - alpha) * multiplier[j]
                         if penalty == "mcp":
-                            beta[l * p + j] = mcp_loss(z[j], l1, l2, gamma, 1)
+                            beta[l, j] = mcp_loss(z[j], l1, l2, gamma, 1)
                         elif penalty == "scad":
-                            beta[l * p + j] = scad_loss(z[j], l1, l2, gamma, 1)
+                            beta[l, j] = scad_loss(z[j], l1, l2, gamma, 1)
                         elif penalty == "lasso":
-                            beta[l * p + j] = lasso_loss(z[j], l1, l2, 1)
+                            beta[l, j] = lasso_loss(z[j], l1, l2, 1)
                         else:
                             raise ValueError("Penalty must be one of 'lasso', 'mcp', or 'scad'")
 
-                        if beta[l * p + j] != 0:
+                        if beta[l, j] != 0:
                             e1[j] = e2[j] = 1
                             for i in range(n):
-                                r[i] -= beta[l * p + j] * X[j * n + i]
-                            a[j] = beta[l * p + j]
+                                r[i] -= beta[l, j] * X[i, j]
+                            a[j] = beta[l, j]
                             violations += 1
                 if violations == 0:
                     break
@@ -132,25 +141,25 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
             violations = 0
             for j in range(p):
                 if e2[j] == 0:
-                    z[j] = np.cross(X, r, n, j) / n
+                    z[j] = np.dot(X[:, j], r) / n
 
                     # Update beta_j
                     l1 = lmbd[l] * alpha * multiplier[j]
                     l2 = lmbd[l] * (1 - alpha) * multiplier[j]
                     if penalty == "mcp":
-                        beta[l*p+j] = mcp_loss(z[j], l1, l2, gamma, 1)
+                        beta[l, j] = mcp_loss(z[j], l1, l2, gamma, 1)
                     elif penalty == "scad":
-                        beta[l*p+j] = scad_loss(z[j], l1, l2, gamma, 1)
+                        beta[l, j] = scad_loss(z[j], l1, l2, gamma, 1)
                     elif penalty == "lasso":
-                        beta[l*p+j] = lasso_loss(z[j], l1, l2, 1)
+                        beta[l, j] = lasso_loss(z[j], l1, l2, 1)
                     else:
                         raise ValueError("Penalty must be one of 'lasso', 'mcp', or 'scad'")
 
-                    if beta[l*p+j] != 0:
+                    if beta[l, j] != 0:
                         e1[j] = e2[j] = 1
                         for i in range(n):
-                            r[i] -= beta[l*p+j] * X[j*n+i]
-                        a[j] = beta[l*p+j]
+                            r[i] -= beta[l, j] * X[i, j]
+                        a[j] = beta[l, j]
                         violations += 1
 
             if violations == 0:
@@ -159,7 +168,7 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
         # Update loss
         loss[l] = gauss_loss(r, n)
         for i in range(n):
-            Eta[n*l+i] = y[i] - r[i]
+            Eta[l, i] = y[i] - r[i]
 
     res = {"a": a,
            "r": r,
@@ -169,5 +178,5 @@ def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, df
            "beta": beta,
            "loss": loss,
            "Eta": Eta,
-           "n_iter": total_iter}
+           "iter_idx": iter_idx}
     return res

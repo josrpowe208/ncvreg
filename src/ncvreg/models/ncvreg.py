@@ -3,6 +3,7 @@ from typing import List
 import numpy as np
 from scipy import stats
 import statsmodels.api as sm
+from itertools import repeat
 from src.ncvreg.utils import maxprod, get_convex_min
 from src.ncvreg.models.coordinate_descent_glm import cd_ols
 from src.ncvreg.models.coordinate_descent_gaussian import cd_gaussian
@@ -173,14 +174,14 @@ class NCVREG(BaseRegressor):
     def _fit_gaussian(self):
         # Initialize
         res = cd_gaussian(self.X, self.y, self.penalty, self.lmbd, self.eps,
-                          self.max_iter, self.gamma, self.multiplier, self.alpha,
+                          self.max_iter, self.gamma, self.penalty_factor, self.alpha,
                           self.dfmax)
         return res
 
     def _fit_glm(self):
         # Initialize
         res = cd_ols(self.X, self.y, self.family, self.penalty, self.lmbd,
-                     self.eps, self.max_iter, self.gamma, self.multiplier,
+                     self.eps, self.max_iter, self.gamma, self.penalty_factor,
                      self.alpha, self.dfmax)
         return res
 
@@ -211,32 +212,32 @@ class NCVREG(BaseRegressor):
 
         # Fit the model
         if self.family == 'gaussian':
-            model = self._fit_gaussian()
-            a = np.repeat(np.mean(self.y), self.nlambda)
-            b = np.array(model['beta'], self.p, self.nlambda)
-            loss = model['loss']
-            eta = np.array(model['eta'], self.n) + np.mean(self.y)
-            iter = model['iter']
+            self.model = self._fit_gaussian()
+            self.a = np.repeat(np.mean(self.y), self.nlambda)
+            self.b = self.model['beta']
+            self.loss = self.model['loss']
+            self.eta = np.array(self.model['Eta']).transpose() + np.mean(self.y)
+            self.iter_idx = self.model['iter_idx']
         else:
-            model = self._fit_glm()
-            a = model['alpha']
-            b = np.array(model['beta'], self.p, self.nlambda)
-            loss = model['loss']
-            eta = np.array(model['eta'], self.n) + np.mean(self.y)
-            iter = model['iter']
+            self.model = self._fit_glm()
+            self.a = self.model['alpha']
+            self.b = self.model['beta']
+            self.loss = self.model['loss']
+            self.eta = self.model['Eta']
+            self.iter_idx = self.model['iter_idx']
 
         # Eliminate saturated lambda values
-        idxs = np.where(iter.notnull())[0]
-        self.a = a[idxs]
-        self.b = np.where(b, idxs)
-        self.iter = iter[idxs]
+        idxs = np.where(~np.isnan(self.iter_idx))[0]
+        self.a = self.a[idxs]
+        self.b = self.b[idxs]
+        self.iter = self.iter_idx[idxs]
         self.lmbd = self.lmbd[idxs]
-        self.loss = loss[idxs]
-        self.eta = np.where(eta, idxs)
+        self.loss = self.loss[idxs]
+        self.eta = self.eta[idxs]
 
         # Identify local convexity
         if self.convex:
-            self.convex_min = get_convex_min(b, self.X_std, self.penalty, self.gamma, self.lmbd*(1-self.alpha), self.family, self.penalty_factor, a)
+            self.convex_min = get_convex_min(self.b, self.X_std, self.penalty, self.gamma, self.lmbd*(1-self.alpha), self.family, self.penalty_factor, self.a)
         else:
             self.convex_min = None
 
