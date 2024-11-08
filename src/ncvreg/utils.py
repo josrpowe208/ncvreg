@@ -43,7 +43,7 @@ def get_convex_min(b, X, penalty, gamma, l2, family, pf, a, Delta=None):
     :return:
     """
     n, p = X.shape
-    l = len(b)
+    l = b.shape[1]
 
     if penalty == "mcp":
         k = 1/gamma
@@ -67,19 +67,19 @@ def get_convex_min(b, X, penalty, gamma, l2, family, pf, a, Delta=None):
             L_2 = l2[i]
             U = A_1
         else:
-            A_2 = b[:, i+1]
-            U = np.minimum(A_1, A_2)
-            L_2 = l2[i+1]
+            A_2 = b[:, i]
+            U = np.logical_and(A_1, A_2)
+            L_2 = l2[i]
 
-        if sum(-U) == 0:
+        if sum(~U) == 0:
             continue
 
-        Xu = X[:, -U]
-        p_hat = k*np.where(pf[-U] != 0) - L_2*pf[-U]
+        Xu = X[:, ~U]
+        p_hat = k*np.where(pf[~U] != 0, 1, 0) - L_2*pf[~U]
 
         if family == "gaussian":
             if any(A_1 != A_2):
-                eigen_min = min(np.eigvals(np.cross(Xu)/n - np.diag(p_hat)))
+                eigen_min = min(np.linalg.eigvals(np.dot(np.eye(Xu.shape[1], Xu.shape[0]), Xu)/n - np.diag(p_hat)))
         elif family == "binomial":
             if (i == l):
                 eta = a[i] + np.matmul(X, b[:, i])

@@ -214,14 +214,14 @@ class NCVREG(BaseRegressor):
         if self.family == 'gaussian':
             self.model = self._fit_gaussian()
             self.a = np.repeat(np.mean(self.y), self.nlambda)
-            self.b = self.model['beta']
+            self.b = self.model['beta'].transpose()
             self.loss = self.model['loss']
             self.eta = np.array(self.model['Eta']).transpose() + np.mean(self.y)
             self.iter_idx = self.model['iter_idx']
         else:
             self.model = self._fit_glm()
             self.a = self.model['alpha']
-            self.b = self.model['beta']
+            self.b = self.model['beta'].transpose()
             self.loss = self.model['loss']
             self.eta = self.model['Eta']
             self.iter_idx = self.model['iter_idx']
@@ -229,7 +229,7 @@ class NCVREG(BaseRegressor):
         # Eliminate saturated lambda values
         idxs = np.where(~np.isnan(self.iter_idx))[0]
         self.a = self.a[idxs]
-        self.b = self.b[idxs]
+        self.b = self.b[:, idxs]
         self.iter = self.iter_idx[idxs]
         self.lmbd = self.lmbd[idxs]
         self.loss = self.loss[idxs]
@@ -243,12 +243,37 @@ class NCVREG(BaseRegressor):
 
         self.fitted = True
 
-    def predict(self):
+    def predict(self, type='link'):
         # Predict the response
-        if self.family == 'gaussian':
-            pass
-        else:
-            pass
+        if not self.fitted:
+            raise ValueError('Model has not been fitted')
+
+        if type not in ['response', 'coefficients', 'link', 'class', 'vars', 'nvars']:
+            raise ValueError('Invalid Prediction type')
+
+        if type == "coefficients":
+            return self.b
+
+        if type == "nvars":
+            return lambda x: np.sum(self.b != 0)
+        if type == "vars":
+            return lambda x: np.where(self.b != 0)
+
+        self.eta = sweep(self.X, self.b, self.a, function='sum')
+
+        if type == "link" or self.family == "gaussian":
+            return self.eta
+
+        resp = np.zeros(self.eta.shape)
+
+        if type == "response":
+            return drop(resp)
+        if type == "class":
+            if self.family == "binomial":
+                return drop(1*self.eta>0)
+            else:
+                raise ValueError("Only binomial family is supported for class prediction")
+
 
     def fit_predict(self):
         # Fit the model and predict the response
