@@ -1,9 +1,8 @@
 import warnings
-from typing import List
+from typing import List, Union
 import numpy as np
 from scipy import stats
 import statsmodels.api as sm
-from itertools import repeat
 from src.ncvreg.utils import maxprod, get_convex_min
 from src.ncvreg.models.coordinate_descent_glm import cd_ols
 from src.ncvreg.models.coordinate_descent_gaussian import cd_gaussian
@@ -151,15 +150,15 @@ class NCVREG(BaseRegressor):
             fam = sm.families.Poisson()
 
         if len(idx) != self.p:
-            fit = sm.GLM(self.y, self.X[:, idx], family=fam).fit()
+            fit = sm.GLM(self.y, self.X_std[:, idx], family=fam).fit()
         else:
             fit = sm.GLM(self.y, np.ones(self.n), family=fam).fit()
 
         # Find Z-max
         if self.family == 'gaussian':
-            zmax = maxprod(self.X, fit.resid_deviance, idx, self.penalty_factor) / self.n
+            zmax = maxprod(self.X_std, fit.resid_deviance, idx, self.penalty_factor) / self.n
         else:
-            zmax = maxprod(self.X, fit.resid_working * fit.weights, idx, self.penalty_factor) / self.n
+            zmax = maxprod(self.X_std, fit.resid_working * fit.weights, idx, self.penalty_factor) / self.n
 
         lambda_max = zmax / self.alpha
 
@@ -171,19 +170,44 @@ class NCVREG(BaseRegressor):
         if len(idx) != self.p:
             self.lmbd = self.lmbd * 1.000001
 
+        self.lmbd = np.sort(self.lmbd)
+
     def _fit_gaussian(self):
         # Initialize
-        res = cd_gaussian(self.X, self.y, self.penalty, self.lmbd, self.eps,
+        res = cd_gaussian(self.X_std, self.y_std, self.penalty, self.lmbd, self.eps,
                           self.max_iter, self.gamma, self.penalty_factor, self.alpha,
                           self.dfmax)
         return res
 
     def _fit_glm(self):
         # Initialize
-        res = cd_ols(self.X, self.y, self.family, self.penalty, self.lmbd,
+        res = cd_ols(self.X_std, self.y, self.family, self.penalty, self.lmbd,
                      self.eps, self.max_iter, self.gamma, self.penalty_factor,
                      self.alpha, self.dfmax)
         return res
+
+    def _get_coef(self, lmbd: Union[float, list]=None, which=None, drop=True, **kwargs):
+        if which == None:
+            which = len(self.lmbd)
+
+        if isinstance(lmbd, float):
+            lmbd = [lmbd]
+
+        if lmbd:
+            if max(lmbd) > max(self.lmbd) or min(lmbd) < min(self.lmbd):
+                raise ValueError('Supplied lambda values are outside the range of the fitted model')
+            idx = np.interp(self.lmbd, self.lmbd, lmbd)
+            l = int(np.floor(idx))
+            r = int(np.ceil(idx))
+            w = idx % 1
+            beta = ((1 - w) * self.b[:, l]) + (w * self.b[:, r])
+        else:
+            beta = self.b[:, :which]
+        if drop:
+            return np.squeeze(beta)
+        else:
+            return beta
+
 
     def fit(self):
         """
@@ -208,7 +232,8 @@ class NCVREG(BaseRegressor):
             if self.nlambda == 1:
                 warnings.warn('Only one lambda value provided. Will use this value for fitting')
             else:
-                self.lmbd = -np.sort(-self.lmbd)
+                # Sort lambda values from smallest to largest
+                self.lmbd = np.sort(self.lmbd)
 
         # Fit the model
         if self.family == 'gaussian':
@@ -243,34 +268,42 @@ class NCVREG(BaseRegressor):
 
         self.fitted = True
 
-    def predict(self, type='link'):
+    def predict(self, X, ptype: str = 'link'):
         # Predict the response
         if not self.fitted:
             raise ValueError('Model has not been fitted')
 
-        if type not in ['response', 'coefficients', 'link', 'class', 'vars', 'nvars']:
+        if ptype not in ['response', 'coefficients', 'link', 'class', 'vars', 'nvars']:
             raise ValueError('Invalid Prediction type')
 
-        if type == "coefficients":
-            return self.b
+        X_std = stats.zscore(X, axis=1)
 
-        if type == "nvars":
-            return lambda x: np.sum(self.b != 0)
-        if type == "vars":
-            return lambda x: np.where(self.b != 0)
+        beta = self._get_coef()
 
-        self.eta = sweep(self.X, self.b, self.a, function='sum')
+        if ptype == "coefficients":
+            return beta
 
-        if type == "link" or self.family == "gaussian":
-            return self.eta
+        if ptype == "nvars":
+            return lambda x: np.sum(beta != 0)
+        if ptype == "vars":
+            return lambda x: np.where(beta != 0)
 
-        resp = np.zeros(self.eta.shape)
+        self.eta = np.matmul(X_std, beta) + self.a
 
-        if type == "response":
-            return drop(resp)
-        if type == "class":
+        if ptype == "link" or self.family == "gaussian":
+            return np.squeeze(self.eta)
+        elif self.family == "binomial":
+            resp = np.exp(self.eta) / (1 + np.exp(self.eta))
+        elif self.family == "poisson":
+            resp = np.exp(self.eta)
+        else:
+            raise ValueError("Unknown family specified for response prediction")
+
+        if ptype == "response":
+            return np.squeeze(resp)
+        if ptype == "class":
             if self.family == "binomial":
-                return drop(1*self.eta>0)
+                return np.squeeze(1*self.eta>0)
             else:
                 raise ValueError("Only binomial family is supported for class prediction")
 

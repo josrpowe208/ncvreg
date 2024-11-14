@@ -18,11 +18,10 @@ def maxprod(X, residuals, idx, penalty_factor):
     n, p = X.shape
     zmax = 0
 
-    def max_sum(a, b):
-        return np.dot(a, b)
-
     for i in range(p):
-        zz = max_sum(X[:, i], residuals) / penalty_factor[idx[i]]
+        t1 = np.dot(X[:, i], residuals)
+        t2 = penalty_factor[idx[i]]
+        zz = np.dot(X[:, i], residuals) / penalty_factor[idx[i]]
         if np.abs(zz) > zmax:
             zmax = np.abs(zz)
     return zmax
@@ -106,8 +105,8 @@ def get_convex_min(b, X, penalty, gamma, l2, family, pf, a, Delta=None):
                 eta = np.matmul(X, b[:, i])
             else:
                 eta = np.matmul(X, b[:, i + 1])
-            haz = drop(np.exp(eta))
-            rsk = reverse(np.cumsum(reverse(haz)))
+            haz = np.squeeze(np.exp(eta))
+            rsk = np.cumsum(haz.reverse()).reverse()
             h = haz*np.cumsum(Delta/rsk)
             XwXn = np.cross(np.sqrt(h) * Xu)/n
             eigen_min = min(np.eigvals(XwXn - np.diag(np.diag(XwXn)*p_hat, XwXn.shape[0], XwXn.shape[1])))
