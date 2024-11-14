@@ -4,13 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ncvreg"
+version = "0.0.1"
 authors = [
     {name = "Joseph Powell", email = "jrp208@case.edu"}
 ]
-version = "0.0.1"
+description = "Python implementation of the nonconvex penalized regression R package 'ncvreg'"
+readme = "README.md"
 requires-python = ">3.10"
 dependencies = ["numpy", "numba"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 2 - Pre-Alpha",
+]
 
-[tool.setuptools.pacakges.find]
+[tool.setuptools.packages.find]
 where = ["src"]
 include = ["ncvreg"]
