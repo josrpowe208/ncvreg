@@ -3,10 +3,10 @@ from typing import List, Union
 import numpy as np
 from scipy import stats
 import statsmodels.api as sm
-from src.ncvreg.utils import maxprod, get_convex_min
-from src.ncvreg.models.coordinate_descent_glm import cd_ols
-from src.ncvreg.models.coordinate_descent_gaussian import cd_gaussian
-from src.ncvreg.base import BaseRegressor
+from ..utils import maxprod, get_convex_min
+from .coordinate_descent_glm import cd_ols
+from .coordinate_descent_gaussian import cd_gaussian
+from ..base import BaseRegressor
 
 
 class NCVREG(BaseRegressor):

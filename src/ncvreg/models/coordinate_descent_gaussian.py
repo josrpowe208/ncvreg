@@ -4,7 +4,7 @@ from os import lstat
 
 import scipy as sp
 import numpy as np
-from src.ncvreg.utils import mcp_loss, scad_loss, lasso_loss, gauss_loss
+from ..utils import mcp_loss, scad_loss, lasso_loss, gauss_loss
 
 def cd_gaussian(X, y, penalty, lmbd, eps, max_iter, gamma, multiplier, alpha, dfmax):
     n, p = X.shape
