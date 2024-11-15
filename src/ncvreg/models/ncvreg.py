@@ -21,7 +21,8 @@ class NCVREG(BaseRegressor):
                  nlambda: int = 100,
                  eps: float = 1e-4,
                  max_iter: int = 1000,
-                 convex: bool = True):
+                 convex: bool = True,
+                 penalty_factor: np.ndarray = None):
         """
         Fit a Regularized regression model using MCP or SCAD Penalty
 
@@ -56,6 +57,9 @@ class NCVREG(BaseRegressor):
 
         convex : bool, optional,
             Calculate the index for which objective function ceases to be locally convex. Default is True.
+
+        penalty_factor : np.ndarray, optional,
+            Penalty factors for each predictor. Default will be 1 for all predictors.
         """
         super().__init__()
         self.X = X
@@ -73,7 +77,7 @@ class NCVREG(BaseRegressor):
         self.p = self.X.shape[1]
         self.lambda_min = 0.001 if self.n > self.p else 0.05
         self.dfmax = self.p + 1
-        self.penalty_factor = np.repeat(1, self.p)
+        self.penalty_factor = penalty_factor if penalty_factor is not None else np.repeat(1, self.p)
 
         # Parameter Checks
         if self.family not in ['gaussian', 'binomial', 'poisson']:
@@ -127,10 +131,7 @@ class NCVREG(BaseRegressor):
             raise ValueError('X and y must not contain NaNs')
 
     def _standardize(self):
-        """
-        Standardize the data matrix by column
-        :return:
-        """
+        # Standardize the data
         self.X_std = stats.zscore(self.X, axis=1)
 
         if self.family == 'gaussian':
@@ -208,7 +209,6 @@ class NCVREG(BaseRegressor):
         else:
             return beta
 
-
     def fit(self):
         """
         Fit the model
@@ -268,7 +268,25 @@ class NCVREG(BaseRegressor):
 
         self.fitted = True
 
-    def predict(self, X, ptype: str = 'link'):
+    def predict(self, X: np.ndarray = None, ptype: str = 'link'):
+        """
+        Predict the response variable from a new set of predictors or return the coefficients of the fitted model.
+
+        Parameters
+        ----------
+        X : np.ndarray,
+            New set of predictors
+
+        ptype : str, optional,
+            Type of prediction. Options are 'response', 'coefficients', 'link', 'class', 'vars', 'nvars'.
+            Default is 'link'.
+
+        Returns
+        -------
+        np.ndarray,
+            Predicted response variable or coefficients
+
+        """
         # Predict the response
         if not self.fitted:
             raise ValueError('Model has not been fitted')

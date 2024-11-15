@@ -6,21 +6,21 @@ class BaseRegressor(ABC, ABCMeta):
         super().__init__()
 
     @abstractmethod
-    def fit(self):
+    def fit(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def predict(self):
+    def predict(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def fit_predict(self):
+    def fit_predict(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def transform(self):
+    def transform(self, *args, **kwargs):
         pass
 
     @abstractmethod
-    def fit_transform(self):
+    def fit_transform(self, *args, **kwargs):
         pass
