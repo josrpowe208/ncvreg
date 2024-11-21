@@ -2,6 +2,8 @@ import warnings
 from typing import List, Union
 import numpy as np
 from scipy import stats
+from scipy.linalg import cholesky
+from scipy.linalg.lapack import dtrtri
 import statsmodels.api as sm
 from ..utils import maxprod, get_convex_min
 from .coordinate_descent_glm import cd_ols
@@ -13,6 +15,7 @@ class NCVREG(BaseRegressor):
     def __init__(self,
                  X: np.ndarray,
                  y: np.ndarray,
+                 sigma: np.ndarray = None,
                  lmbd: List = None,
                  family: str = 'gaussian',
                  penalty: str = 'mcp',
@@ -28,6 +31,15 @@ class NCVREG(BaseRegressor):
 
         Parameters
         ----------
+        X : np.ndarray,
+            The design matrix or predictors.
+
+        y : np.ndarray,
+            The response variable.
+
+        sigma : np.ndarray, optional,
+            The covariance matrix of the response variable. Default is None.
+
         lmbd : list, optional,
             A user specified list of lambda values. If not provided, the function will generate a sequence of lambda
             values based on the length of nlambda.
@@ -64,6 +76,7 @@ class NCVREG(BaseRegressor):
         super().__init__()
         self.X = X
         self.y = y
+        self.sigma = sigma
         self.lmbd = lmbd
         self.family = family
         self.penalty = penalty
@@ -130,6 +143,10 @@ class NCVREG(BaseRegressor):
         if np.isnan(self.y).any() or np.isnan(self.X).any():
             raise ValueError('X and y must not contain NaNs')
 
+        # Set the degrees of freedom for the model
+        rank = np.linalg.matrix_rank(self.X)
+        self.df_model = float(rank)
+
     def _standardize(self):
         # Standardize the data
         self.X_std = stats.zscore(self.X, axis=1)
@@ -138,6 +155,36 @@ class NCVREG(BaseRegressor):
             self.y_std = self.y - np.mean(self.y)
         else:
             self.y_std = self.y
+
+    def _get_sigma(self, sigma):
+        """
+        Returns sigma (matrix, nobs by nobs), the covariance of the error/noise terms, for GLS and the inverse of its
+        Cholesky decomposition.  Handles dimensions and checks integrity.
+        If sigma is None, returns None, None. Otherwise returns sigma,
+        cholsigmainv.
+        """
+        if sigma is None:
+            return None, None
+        sigma = np.asarray(sigma).squeeze()
+        if sigma.ndim == 0:
+            sigma = np.repeat(sigma, self.n)
+        if sigma.ndim == 1:
+            if sigma.shape != (self.n,):
+                raise ValueError("Sigma must be a scalar, 1d of length %s or a 2d "
+                                 "array of shape %s x %s" % (self.n, self.n, self.n))
+            cholsigmainv = 1 / np.sqrt(sigma)
+        else:
+            if sigma.shape != (self.n, self.n):
+                raise ValueError("Sigma must be a scalar, 1d of length %s or a 2d "
+                                 "array of shape %s x %s" % (self.n, self.n, self.n))
+            cholsigmainv, info = dtrtri(cholesky(sigma, lower=True),
+                                        lower=True, overwrite_c=True)
+            if info > 0:
+                raise np.linalg.LinAlgError('Cholesky decomposition of sigma '
+                                            'yields a singular matrix')
+            elif info < 0:
+                raise ValueError('Invalid input to dtrtri (info = %d)' % info)
+        return sigma, cholsigmainv
 
     def _get_lambda(self):
         idx = np.where(self.penalty_factor != 0)[0]
@@ -209,6 +256,33 @@ class NCVREG(BaseRegressor):
         else:
             return beta
 
+    def _loglike(self, params):
+        """
+        Compute the value of the log-likelihood function based on family and parameters
+
+        Parameters
+        ----------
+        params : arraylike,
+            model parameters.
+
+        Returns
+        -------
+        float
+            value of the log-likelihood function.
+        """
+
+        nobs2 = self.n / 2
+        SSR = np.sum((self.y_std - (np.matmul(self.X_std, params) + self.a)) ** 2, axis=0)
+        llf = -np.log(SSR) * nobs2 # concentrated likelihood e.g. -(n/2)log((y-yhat)'(y-yhat))
+        llf -= (1 + np.log(2*np.pi / self.n)) * nobs2 # likelihood constant
+        if np.any(self.sigma): # get covariance matrix of the parameters
+            if self.sigma.ndim == 2:
+                det = np.linalg.slogdet(self.sigma)
+                llf -= det[1] / 2
+            else:
+                llf -= np.sum(np.log(self.sigma)) / 2
+        return llf
+
     def fit(self):
         """
         Fit the model
@@ -223,6 +297,7 @@ class NCVREG(BaseRegressor):
 
         # Standardize the data
         self._standardize()
+        self.sigma, self.cholsigmainv = self._get_sigma(self.sigma)
 
         # Get lambda
         if self.lmbd is None:
@@ -265,6 +340,12 @@ class NCVREG(BaseRegressor):
             self.convex_min = get_convex_min(self.b, self.X_std, self.penalty, self.gamma, self.lmbd*(1-self.alpha), self.family, self.penalty_factor, self.a)
         else:
             self.convex_min = None
+
+        # Get fitted criterion
+        loglike = self._loglike(self.b)
+        self.aic = 2 * self.df_model - 2*np.log(loglike)
+        self.bic = -2*loglike + np.log(self.n) * self.df_model
+        self.aicc = self.aic - 2 * self.p*(self.p + 1) / (self.n - self.p - 1)
 
         self.fitted = True
 
