@@ -277,7 +277,9 @@ class NCVREG(BaseRegressor):
         """
 
         nobs2 = self.n / 2
-        SSR = np.sum((self.y_std - (np.matmul(self.X_std, params) + self.a)) ** 2, axis=0)
+        yhat = np.squeeze(np.matmul(self.X_std, params))
+        resid = self.y_std - yhat
+        SSR = np.sum(resid**2)
         llf = -np.log(SSR) * nobs2 # concentrated likelihood e.g. -(n/2)log((y-yhat)'(y-yhat))
         llf -= (1 + np.log(2*np.pi / self.n)) * nobs2 # likelihood constant
         if np.any(self.sigma): # get covariance matrix of the parameters
@@ -362,6 +364,15 @@ class NCVREG(BaseRegressor):
             return aicc
         else:
             raise ValueError('Invalid criterion specified %s' % crit)
+
+    def aic(self):
+        return self._get_crit('aic')
+
+    def bic(self):
+        return self._get_crit('bic')
+
+    def aicc(self):
+        return self._get_crit('aicc')
 
     def predict(self, X: np.ndarray = None, ptype: str = 'link'):
         """

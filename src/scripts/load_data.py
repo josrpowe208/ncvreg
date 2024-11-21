@@ -31,6 +31,8 @@ X_train, X_test, y_train, y_test = train_test_split(X, y)
 model = NCVREG(X_train, y_train)
 model.fit()
 
+test_crit = model.aic()
+
 res = model.predict(X_test)
 
 print(root_mean_squared_error(y_test, res))
