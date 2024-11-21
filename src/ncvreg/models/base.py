@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod, ABCMeta
 
 
 class BaseRegressor(ABC, ABCMeta):
-    def __init__(self, *args, **kwargs):
+    def __init__(cls, self, *args, **kwargs):
         super().__init__()
+        self.fitted = False
 
     @abstractmethod
     def fit(self, *args, **kwargs):

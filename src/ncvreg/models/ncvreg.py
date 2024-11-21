@@ -25,7 +25,8 @@ class NCVREG(BaseRegressor):
                  eps: float = 1e-4,
                  max_iter: int = 1000,
                  convex: bool = True,
-                 penalty_factor: np.ndarray = None):
+                 penalty_factor: np.ndarray = None,
+                 criterion: str = 'aic'):
         """
         Fit a Regularized regression model using MCP or SCAD Penalty
 
@@ -72,6 +73,9 @@ class NCVREG(BaseRegressor):
 
         penalty_factor : np.ndarray, optional,
             Penalty factors for each predictor. Default will be 1 for all predictors.
+
+        criterion : str, optional,
+            Model selection criteria. Default is Akaike Information Criterion (AIC).
         """
         super().__init__()
         self.X = X
@@ -79,6 +83,7 @@ class NCVREG(BaseRegressor):
         self.sigma = sigma
         self.lmbd = lmbd
         self.family = family
+        self.criterion = criterion
         self.penalty = penalty
         self.alpha = alpha
         self.nlambda = nlambda
@@ -341,13 +346,22 @@ class NCVREG(BaseRegressor):
         else:
             self.convex_min = None
 
+        self.fitted = True
+
+    def _get_crit(self, crit):
         # Get fitted criterion
         loglike = self._loglike(self.b)
-        self.aic = 2 * self.df_model - 2*np.log(loglike)
-        self.bic = -2*loglike + np.log(self.n) * self.df_model
-        self.aicc = self.aic - 2 * self.p*(self.p + 1) / (self.n - self.p - 1)
-
-        self.fitted = True
+        aic = 2 * self.df_model - 2 * loglike
+        if crit == 'aic':
+            return aic
+        elif crit == 'bic':
+            bic = np.log(self.n) * self.df_model - 2 * loglike
+            return bic
+        elif crit == 'aicc':
+            aicc = aic - 2 * self.p * (self.p + 1) / (self.n - self.p - 1)
+            return aicc
+        else:
+            raise ValueError('Invalid criterion specified %s' % crit)
 
     def predict(self, X: np.ndarray = None, ptype: str = 'link'):
         """
