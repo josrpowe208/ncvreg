@@ -15,12 +15,10 @@ def maxprod(X, residuals, idx, penalty_factor):
     :return: float
         Maximum product
     """
-    n, p = X.shape
+    p = len(idx)
     zmax = 0
 
     for i in range(p):
-        t1 = np.dot(X[:, i], residuals)
-        t2 = penalty_factor[idx[i]]
         zz = np.dot(X[:, i], residuals) / penalty_factor[idx[i]]
         if np.abs(zz) > zmax:
             zmax = np.abs(zz)

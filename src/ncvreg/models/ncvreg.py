@@ -138,6 +138,11 @@ class NCVREG(BaseRegressor):
             raise ValueError('alpha must be greater than 0. Choose a small positive number')
         if len(self.penalty_factor) != self.p:
             raise ValueError('Dimensions do not match. penalty_factor must be of length p')
+        if not isinstance(self.penalty_factor, np.ndarray):
+            try:
+                self.penalty_factor = np.array(self.penalty_factor)
+            except Exception as e:
+                raise TypeError('penalty_factor must be an np.ndarray or coercible to one. %s' % e)
         if self.family == 'binomial' and len(np.unique(self.y)) > 2:
             raise ValueError('y must be binary for binomial family')
         # Check that the only values for y in a binomial family are 0 and 1
